@@ -45,7 +45,7 @@ A web application for calculating IC50 values from dose-response data using a 4-
 
 2. Open a web browser and navigate to:
    ```
-   http://localhost:5000
+   http://localhost:5001
    ```
 
 ## Usage
