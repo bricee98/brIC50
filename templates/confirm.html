@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirm Data - IC50 Calculator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Confirm Your Data</h1>
+        
+        <div class="data-summary">
+            <p>Found {{ n_concentrations }} concentration points with {{ n_replicates }} replicates each.</p>
+        </div>
+
+        <div class="data-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Concentration</th>
+                        {% for i in range(n_replicates) %}
+                        <th>Replicate {{ i + 1 }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in data_rows %}
+                    <tr>
+                        {% for value in row %}
+                        <td>{{ "%.2f"|format(value) }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="actions">
+            <form action="{{ url_for('fit') }}" method="post" class="inline-form">
+                <button type="submit" class="primary">Proceed with Analysis</button>
+            </form>
+            <form action="{{ url_for('index') }}" method="get" class="inline-form">
+                <button type="submit" class="secondary">Start Over</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html> 

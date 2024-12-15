@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Results - IC50 Calculator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Analysis Results</h1>
+
+        {% if error %}
+        <div class="error">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <div class="results">
+            <h2>Fitted Parameters</h2>
+            <table>
+                <tr>
+                    <th>Parameter</th>
+                    <th>Value</th>
+                </tr>
+                <tr>
+                    <td>Top</td>
+                    <td>{{ "%.2f%%"|format(parameters.top) if parameters.top is not none else "N/A" }}</td>
+                </tr>
+                <tr>
+                    <td>Bottom</td>
+                    <td>{{ "%.2f%%"|format(parameters.bottom) if parameters.bottom is not none else "N/A" }}</td>
+                </tr>
+                <tr>
+                    <td>IC50</td>
+                    <td>{{ "%.2f"|format(parameters.ic50) if parameters.ic50 is not none else "N/A" }}</td>
+                </tr>
+                <tr>
+                    <td>Hill Slope</td>
+                    <td>{{ "%.2f"|format(parameters.hill) if parameters.hill is not none else "N/A" }}</td>
+                </tr>
+            </table>
+
+            <h3>Fit Statistics</h3>
+            <table>
+                <tr>
+                    <th>Metric</th>
+                    <th>Value</th>
+                </tr>
+                <tr>
+                    <td>R-squared (all points)</td>
+                    <td>{{ "%.4f"|format(diagnostics.r_squared) }}</td>
+                </tr>
+                <tr>
+                    <td>R-squared (means)</td>
+                    <td>{{ "%.4f"|format(diagnostics.r_squared_means) }}</td>
+                </tr>
+            </table>
+
+            <h2>Concentration Response Data</h2>
+            <table>
+                <tr>
+                    <th>Concentration (μM)</th>
+                    <th>Mean Response (%)</th>
+                    <th>SD</th>
+                    <th>Inhibition (%)</th>
+                    <th>Used in Fit</th>
+                </tr>
+                {% for i in range(inhibition_data.concentrations|length) %}
+                <tr {% if i >= inhibition_data.fit_start_idx %}class="included-in-fit"{% endif %}>
+                    <td>{{ "%.2f"|format(inhibition_data.concentrations[i]) }}</td>
+                    <td>{{ "%.2f"|format(inhibition_data.mean_responses[i]) }}</td>
+                    <td>{{ "%.2f"|format(inhibition_data.std_responses[i]) }}</td>
+                    <td>{{ "%.2f"|format(inhibition_data.percent_inhibition[i]) }}</td>
+                    <td>{% if i >= inhibition_data.fit_start_idx %}Yes{% else %}No{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+        <div class="plot">
+            <h2>Dose-Response Curve</h2>
+            <img src="data:image/png;base64,{{ plot_url }}" alt="Dose-response curve">
+        </div>
+
+        <div class="parameter-controls" style="display: none;">
+            <h2>Adjust Parameters</h2>
+            <button type="button" id="show-controls" class="show-controls-btn">Show Parameter Controls</button>
+            <form id="parameter-form" class="parameter-form" style="display: none;">
+                <div class="parameter-group">
+                    <label for="top">Top:</label>
+                    <input type="number" id="top" name="top" step="0.1" value="{{ parameters.top }}">
+                </div>
+                <div class="parameter-group">
+                    <label for="bottom">Bottom:</label>
+                    <input type="number" id="bottom" name="bottom" step="0.1" value="{{ parameters.bottom }}">
+                </div>
+                <div class="parameter-group">
+                    <label for="ic50">IC50:</label>
+                    <input type="number" id="ic50" name="ic50" step="0.1" value="{{ parameters.ic50 }}">
+                </div>
+                <div class="parameter-group">
+                    <label for="hill">Hill Slope:</label>
+                    <input type="number" id="hill" name="hill" step="0.1" value="{{ parameters.hill }}">
+                </div>
+                <div class="button-group">
+                    <button type="button" id="update-curve">Update Curve</button>
+                    <button type="button" id="recalculate-stats">Recalculate Statistics</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="actions">
+            <form action="{{ url_for('index') }}" method="get">
+                <button type="submit">Start Over</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('parameter-form');
+        const updateButton = document.getElementById('update-curve');
+        const recalculateButton = document.getElementById('recalculate-stats');
+        const plotImg = document.querySelector('.plot img');
+        const showControlsBtn = document.getElementById('show-controls');
+        const parameterControls = document.querySelector('.parameter-controls');
+
+        updateButton.addEventListener('click', async () => {
+            const formData = new FormData(form);
+            const response = await fetch('/update_curve', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(Object.fromEntries(formData)),
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                plotImg.src = 'data:image/png;base64,' + data.plot_url;
+            }
+        });
+
+        recalculateButton.addEventListener('click', async () => {
+            const formData = new FormData(form);
+            const response = await fetch('/recalculate_stats', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(Object.fromEntries(formData)),
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                plotImg.src = 'data:image/png;base64,' + data.plot_url;
+                
+                // Update the parameters and confidence intervals in the table
+                updateResultsTable(data);
+            }
+        });
+
+        showControlsBtn.addEventListener('click', function() {
+            parameterControls.style.display = parameterControls.style.display === 'none' ? 'block' : 'none';
+            showControlsBtn.textContent = parameterControls.style.display === 'none' ? 'Show Parameter Controls' : 'Hide Parameter Controls';
+        });
+    });
+
+    function updateResultsTable(data) {
+        // Update the fitted parameters table
+        const params = ['top', 'bottom', 'ic50', 'hill'];
+        const paramsTable = document.querySelector('table'); // First table (Fitted Parameters)
+        
+        params.forEach(param => {
+            const rows = paramsTable.querySelectorAll('tr');
+            const row = Array.from(rows).find(row => {
+                const firstCell = row.querySelector('td');
+                return firstCell && firstCell.textContent.toLowerCase().includes(param.toLowerCase());
+            });
+
+            if (row) {
+                const cells = row.getElementsByTagName('td');
+                if (param === 'top' || param === 'bottom') {
+                    cells[1].textContent = data.parameters[param].toFixed(2) + '%';
+                } else {
+                    cells[1].textContent = data.parameters[param].toFixed(2);
+                }
+            }
+        });
+
+        // Update the diagnostics table (last table)
+        const tables = document.querySelectorAll('table');
+        const diagnosticsTable = tables[1]; // Second table (Fit Statistics)
+        
+        // Update R-squared values
+        const rows = diagnosticsTable.querySelectorAll('tr');
+        rows.forEach(row => {
+            const firstCell = row.querySelector('td');
+            if (firstCell) {
+                if (firstCell.textContent.includes('R-squared (all points)')) {
+                    row.querySelector('td:last-child').textContent = 
+                        data.diagnostics.r_squared.toFixed(4);
+                } else if (firstCell.textContent.includes('R-squared (means)')) {
+                    row.querySelector('td:last-child').textContent = 
+                        data.diagnostics.r_squared_means.toFixed(4);
+                }
+            }
+        });
+    }
+    </script>
+</body>
+</html> 

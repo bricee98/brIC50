@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IC50 Calculator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>IC50 Calculator</h1>
+        {% if error %}
+        <div class="error-message">
+            {{ error }}
+        </div>
+        {% endif %}
+        <p class="instructions">
+            Paste your tab-delimited data below. The first column should contain concentrations,
+            and the remaining columns should contain replicate measurements.
+        </p>
+        <form action="{{ url_for('confirm_data') }}" method="post">
+            <textarea 
+                name="raw_data" 
+                rows="10" 
+                cols="50" 
+                placeholder="Example:
+0   1000    950     1020
+20  800     790     815
+50  600     630     610
+500 100     120     90"
+            ></textarea>
+            <div class="checkbox-group">
+                <input type="checkbox" id="interpolate" name="interpolate" value="true">
+                <label for="interpolate">Interpolate IC50 (uses control as top, maximum inhibition as bottom)</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="fit_means" name="fit_means" value="true">
+                <label for="fit_means">Fit using means (fit curve to mean values instead of all points)</label>
+            </div>
+            <button type="submit">Parse Data</button>
+        </form>
+    </div>
+</body>
+</html> 
